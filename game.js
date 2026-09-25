@@ -28,6 +28,7 @@ const wrap  = (v, max) => ((v % max) + max) % max;
 const dist  = (a, b)   => Math.hypot(a.x - b.x, a.y - b.y);
 const rand  = (min, max) => min + Math.random() * (max - min);
 const randInt = (min, max) => Math.floor(rand(min, max + 1));
+const FEATURE_DURATION = 5;
 
 // ── Skins ──────────────────────────────────────────────────────────────────────
 const SKINS = [
@@ -257,8 +258,8 @@ class Ship {
     if (this.dead) return;
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
-    if (this.speedBoost    > 0) this.speedBoost    -= dt;
-    if (this.tripleShot    > 0) this.tripleShot    -= dt;
+    if (this.speedBoost    > 0) this.speedBoost = Math.max(0, this.speedBoost - dt);
+    if (this.tripleShot    > 0) this.tripleShot = Math.max(0, this.tripleShot - dt);
 
     if (this.shieldTime > 0) this.shieldTime = Math.max(0, this.shieldTime - dt);
 
@@ -687,11 +688,11 @@ function update(dt) {
     if (dist(ship, p) < ship.radius + p.radius) {
       p.dead = true;
       if (p.type === 'tripleShot') {
-        ship.tripleShot = 5;
+        ship.tripleShot = FEATURE_DURATION;
       } else if (p.type === 'shield') {
-        ship.shieldTime = 5;
+        ship.shieldTime = FEATURE_DURATION;
       } else {
-        ship.speedBoost = 5; // 5 second speed boost
+        ship.speedBoost = FEATURE_DURATION;
       }
     }
   }
@@ -733,38 +734,42 @@ function drawHUD() {
   ctx.textAlign = 'left';
   ctx.fillText(`SCORE  ${score}`, 14, 26);
 
+  const features = [
+    { name: 'SPEED BOOST', time: ship.speedBoost, color: skin.boost },
+    { name: 'TRIPLE SHOT', time: ship.tripleShot, color: '#ffd246' },
+    { name: 'SHIELD', time: ship.shieldTime, color: '#64d2ff' },
+  ].filter(feature => feature.time > 0);
+
+  features.forEach((feature, index) => {
+    const y = 48 + index * 34;
+    const time = Math.max(0, feature.time);
+    const progress = Math.max(0, Math.min(1, time / FEATURE_DURATION));
+    const barWidth = 180;
+    const barHeight = 8;
+
+    ctx.fillStyle = feature.color;
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${feature.name} ${time.toFixed(1)}s`, 14, y);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.fillRect(14, y + 7, barWidth, barHeight);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(14, y + 7, barWidth, barHeight);
+    ctx.fillStyle = feature.color;
+    ctx.fillRect(15, y + 8, (barWidth - 2) * progress, barHeight - 2);
+  });
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '15px monospace';
   ctx.textAlign = 'center';
   ctx.fillText(`NIVEL ${level}`, W / 2, 26);
-
-  // Draw speed boost timer
-  if (ship.speedBoost > 0) {
-    const timer = Math.ceil(ship.speedBoost);
-    ctx.fillStyle = skin.boost;
-    ctx.font = 'bold 16px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`SPEED BOOST: ${timer}`, W - 14, 26);
-  }
-
-  if (ship.tripleShot > 0) {
-    const timer = Math.ceil(ship.tripleShot);
-    ctx.fillStyle = '#ffd246';
-    ctx.font = 'bold 16px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`TRIPLE SHOT: ${timer}`, W - 14, ship.speedBoost > 0 ? 46 : 26);
-  }
 
   ctx.fillStyle = skin.hull;
   ctx.font = '12px monospace';
   ctx.textAlign = 'right';
   ctx.fillText(`SKIN ${skin.name}  [Q/E]`, W - 14, 66);
-
-  if (ship.shieldTime > 0) {
-    const timer = Math.ceil(ship.shieldTime);
-    ctx.fillStyle = '#64d2ff';
-    ctx.font = 'bold 16px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`SHIELD: ${timer}`, W - 14, ship.speedBoost > 0 ? 46 : 26);
-  }
   for (let i = 0; i < lives; i++)
     drawLifeIcon(W - 16 - i * 22, 18);
 

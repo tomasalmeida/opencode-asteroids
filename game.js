@@ -193,6 +193,7 @@ class Ship {
     this.shootCooldown = 0;
     this.dead          = false;
     this.speedBoost    = 0; // seconds of speed boost remaining
+    this.tripleShot    = 0; // seconds of triple shot remaining
   }
 
   update(dt) {
@@ -200,6 +201,7 @@ class Ship {
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.speedBoost    > 0) this.speedBoost    -= dt;
+    if (this.tripleShot    > 0) this.tripleShot    -= dt;
 
     const ROT   = 3.5;   // rad/s
     const THRUST = 260;  // px/s²
@@ -228,6 +230,14 @@ class Ship {
     const NOSE = 21;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
+    if (this.tripleShot > 0) {
+      const spread = 0.2;
+      return [
+        new Bullet(ox, oy, this.angle - spread),
+        new Bullet(ox, oy, this.angle),
+        new Bullet(ox, oy, this.angle + spread),
+      ];
+    }
     return [new Bullet(ox, oy, this.angle)];
   }
 
@@ -271,6 +281,14 @@ class Ship {
       ctx.stroke();
     }
 
+    if (this.tripleShot > 0) {
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius + 8, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 210, 70, 0.8)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
     ctx.restore();
   }
 }
@@ -309,13 +327,13 @@ class Particle {
 
 // ── PowerUp ───────────────────────────────────────────────────────────────────
 class PowerUp {
-  constructor(x, y) {
+  constructor(x, y, type = 'speed') {
     this.x = x;
     this.y = y;
     this.radius = 8;
     this.ttl = 10; // seconds before despawning
     this.dead = false;
-    this.type = 'speed'; // for future extensibility
+    this.type = type;
   }
 
   update(dt) {
@@ -324,7 +342,9 @@ class PowerUp {
   }
 
   draw() {
-    // Draw a blue circle with glow effect
+    const color = this.type === 'tripleShot' ? '#ffd246' : '#6496ff';
+
+    // Draw a colored circle with glow effect
     ctx.save();
     ctx.translate(this.x, this.y);
     
@@ -332,16 +352,31 @@ class PowerUp {
     ctx.beginPath();
     ctx.arc(0, 0, this.radius + 4, 0, Math.PI * 2);
     const gradient = ctx.createRadialGradient(0, 0, this.radius, 0, 0, this.radius + 4);
-    gradient.addColorStop(0, 'rgba(100, 150, 255, 0.8)');
-    gradient.addColorStop(1, 'rgba(100, 150, 255, 0)');
+    gradient.addColorStop(0, this.type === 'tripleShot'
+      ? 'rgba(255, 210, 70, 0.8)'
+      : 'rgba(100, 150, 255, 0.8)');
+    gradient.addColorStop(1, this.type === 'tripleShot'
+      ? 'rgba(255, 210, 70, 0)'
+      : 'rgba(100, 150, 255, 0)');
     ctx.fillStyle = gradient;
     ctx.fill();
     
     // Main circle
     ctx.beginPath();
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-    ctx.fillStyle = '#6496ff'; // Blue color for speed power-up
+    ctx.fillStyle = color;
     ctx.fill();
+
+    if (this.type === 'tripleShot') {
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.5;
+      for (const y of [-3, 0, 3]) {
+        ctx.beginPath();
+        ctx.moveTo(-4, y);
+        ctx.lineTo(4, y);
+        ctx.stroke();
+      }
+    }
     
     // Inner highlight
     ctx.beginPath();
@@ -492,9 +527,10 @@ function update(dt) {
         a.dead = true;
         score += a.points || POINTS[a.size];
         explode(a.x, a.y, a.size * 5);
-        // Spawn power-up with 20% chance when asteroid is destroyed
+        // Spawn a power-up with 20% chance when an asteroid is destroyed.
         if (Math.random() < 0.2) {
-          powerups.push(new PowerUp(a.x, a.y));
+          const type = Math.random() < 0.5 ? 'speed' : 'tripleShot';
+          powerups.push(new PowerUp(a.x, a.y, type));
         }
         newAsteroids.push(...a.split());
       }
@@ -517,7 +553,11 @@ function update(dt) {
   for (const p of powerups) {
     if (dist(ship, p) < ship.radius + p.radius) {
       p.dead = true;
-      ship.speedBoost = 5; // 5 second speed boost
+      if (p.type === 'tripleShot') {
+        ship.tripleShot = 5;
+      } else {
+        ship.speedBoost = 5; // 5 second speed boost
+      }
     }
   }
 
@@ -566,6 +606,14 @@ function drawHUD() {
     ctx.font = 'bold 16px monospace';
     ctx.textAlign = 'right';
     ctx.fillText(`SPEED BOOST: ${timer}`, W - 14, 26);
+  }
+
+  if (ship.tripleShot > 0) {
+    const timer = Math.ceil(ship.tripleShot);
+    ctx.fillStyle = '#ffd246';
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`TRIPLE SHOT: ${timer}`, W - 14, ship.speedBoost > 0 ? 46 : 26);
   }
 
   for (let i = 0; i < lives; i++)

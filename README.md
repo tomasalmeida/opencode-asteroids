@@ -46,5 +46,8 @@ selección se guarda automáticamente en el navegador.
 ## Características
 
 - 3 vidas con invencibilidad temporal al reaparecer (parpadeo)
+- Power-up de velocidad durante 5 segundos
+- Power-up de escudo que protege contra proyectiles durante 5 segundos
+- Estrellas fugaces que disparan proyectiles enemigos
 - Asteroides se parten en fragmentos más pequeños al ser destruidos
 - Partículas de explosión al destruir asteroides

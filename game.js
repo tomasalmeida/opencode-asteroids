@@ -118,6 +118,65 @@ class Asteroid {
   }
 }
 
+// ── Asteroide estrella fugaz ───────────────────────────────────────────────────
+class ShootingStarAsteroid extends Asteroid {
+  constructor(x, y) {
+    super(x, y, 1);
+    const speed = rand(230, 300);
+    const angle = Math.atan2(this.vy, this.vx);
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    this.ttl = rand(4, 7);
+    this.expired = false;
+    this.points = 150;
+    this.trail = [];
+  }
+
+  update(dt) {
+    this.trail.unshift({ x: this.x, y: this.y });
+    if (this.trail.length > 9) this.trail.pop();
+    super.update(dt);
+    this.ttl -= dt;
+    if (this.ttl <= 0) {
+      this.dead = true;
+      this.expired = true;
+    }
+  }
+
+  split() {
+    return [];
+  }
+
+  draw() {
+    ctx.save();
+
+    // Estela decreciente en la dirección opuesta al movimiento.
+    for (let i = this.trail.length - 1; i >= 0; i--) {
+      const point = this.trail[i];
+      const alpha = (1 - i / this.trail.length) * 0.55;
+      ctx.strokeStyle = `rgba(255, 190, 70, ${alpha.toFixed(2)})`;
+      ctx.lineWidth = Math.max(1, 3 - i * 0.25);
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
+      ctx.lineTo(point.x - this.vx * 0.035, point.y - this.vy * 0.035);
+      ctx.stroke();
+    }
+
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(this.verts[0][0], this.verts[0][1]);
+    for (let i = 1; i < this.verts.length; i++)
+      ctx.lineTo(this.verts[i][0], this.verts[i][1]);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 // ── Ship ──────────────────────────────────────────────────────────────────────
 class Ship {
   constructor() { this.reset(); }
@@ -299,6 +358,24 @@ let ship, bullets, asteroids, particles, powerups;
 let score, lives, level;
 let state;      // 'playing' | 'dead' | 'gameover'
 let deadTimer;
+let shootingStarSpawned;
+let shootingStarTimer;
+
+function scheduleShootingStar() {
+  shootingStarSpawned = false;
+  shootingStarTimer = rand(2, 7);
+}
+
+function spawnShootingStar() {
+  const SAFE_DIST = 130;
+  let x, y;
+  do {
+    x = rand(0, W);
+    y = rand(0, H);
+  } while (Math.hypot(x - ship.x, y - ship.y) < SAFE_DIST);
+  asteroids.push(new ShootingStarAsteroid(x, y));
+  shootingStarSpawned = true;
+}
 
 function spawnAsteroids(count) {
   const SAFE_DIST = 130;
@@ -323,6 +400,7 @@ function initGame() {
   level  = 1;
   state  = 'playing';
   spawnAsteroids(4);
+  scheduleShootingStar();
 }
 
 function nextLevel() {
@@ -332,6 +410,7 @@ function nextLevel() {
   powerups  = [];
   ship.reset();
   spawnAsteroids(3 + level);
+  scheduleShootingStar();
 }
 
 function explode(x, y, count = 8) {
@@ -368,6 +447,13 @@ function update(dt) {
     powerups.forEach(p => p.update(dt));
     powerups = powerups.filter(p => !p.dead);
     asteroids.forEach(a => a.update(dt));
+    asteroids.forEach(a => {
+      if (a.expired) {
+        explode(a.x, a.y, 5);
+        a.expired = false;
+      }
+    });
+    asteroids = asteroids.filter(a => !a.dead);
     if (deadTimer <= 0) { state = 'playing'; ship.reset(); }
     return;
   }
@@ -379,7 +465,17 @@ function update(dt) {
 
   ship.update(dt);
   bullets.forEach(b => b.update(dt));
+  if (!shootingStarSpawned) {
+    shootingStarTimer -= dt;
+    if (shootingStarTimer <= 0) spawnShootingStar();
+  }
   asteroids.forEach(a => a.update(dt));
+  asteroids.forEach(a => {
+    if (a.expired) {
+      explode(a.x, a.y, 5);
+      a.expired = false;
+    }
+  });
   particles.forEach(p => p.update(dt));
   powerups.forEach(p => p.update(dt));
 
@@ -394,7 +490,7 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += POINTS[a.size];
+        score += a.points || POINTS[a.size];
         explode(a.x, a.y, a.size * 5);
         // Spawn power-up with 20% chance when asteroid is destroyed
         if (Math.random() < 0.2) {
@@ -425,8 +521,14 @@ function update(dt) {
     }
   }
 
-  // Nivel completado
-  if (asteroids.length === 0) nextLevel();
+  // Garantizar una estrella fugaz antes de completar el nivel.
+  if (asteroids.length === 0) {
+    if (!shootingStarSpawned) {
+      spawnShootingStar();
+    } else {
+      nextLevel();
+    }
+  }
 }
 
 // ── Draw ──────────────────────────────────────────────────────────────────────

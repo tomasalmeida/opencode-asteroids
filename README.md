@@ -29,6 +29,11 @@ Luego visita `http://localhost:3000`.
 | `←` `→`   | Rotar nave |
 | `↑`       | Propulsar  |
 | `Espacio` | Disparar   |
+| `Q`       | Skin anterior |
+| `E`       | Siguiente skin |
+
+La apariencia de la nave puede alternarse durante la partida con `Q` y `E`. La
+selección se guarda automáticamente en el navegador.
 
 ## Puntuación
 

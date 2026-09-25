@@ -12,7 +12,7 @@ const justPressed = {};
 window.addEventListener('keydown', e => {
   justPressed[e.code] = !keys[e.code];
   keys[e.code] = true;
-  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code))
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyQ', 'KeyE'].includes(e.code))
     e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -28,6 +28,41 @@ const wrap  = (v, max) => ((v % max) + max) % max;
 const dist  = (a, b)   => Math.hypot(a.x - b.x, a.y - b.y);
 const rand  = (min, max) => min + Math.random() * (max - min);
 const randInt = (min, max) => Math.floor(rand(min, max + 1));
+
+// ── Skins ──────────────────────────────────────────────────────────────────────
+const SKINS = [
+  { name: 'CLASICA', hull: '#ffffff', accent: '#bde0fe', flame: '#ff8200', boost: '#6496ff' },
+  { name: 'NEON', hull: '#5ee7ff', accent: '#ff4fd8', flame: '#ff4fd8', boost: '#5ee7ff' },
+  { name: 'SOLAR', hull: '#ffd166', accent: '#fff3b0', flame: '#ff9f1c', boost: '#ffd166' },
+  { name: 'CROMO', hull: '#d8dee9', accent: '#7dd3fc', flame: '#38bdf8', boost: '#a5b4fc' },
+];
+const SKIN_STORAGE_KEY = 'asteroids-skin';
+let currentSkinIndex = 0;
+
+function loadSkin() {
+  try {
+    const saved = Number.parseInt(localStorage.getItem(SKIN_STORAGE_KEY), 10);
+    if (Number.isInteger(saved) && saved >= 0 && saved < SKINS.length)
+      currentSkinIndex = saved;
+  } catch (error) {
+    // El juego funciona aunque el navegador bloquee localStorage.
+  }
+}
+
+function currentSkin() {
+  return SKINS[currentSkinIndex];
+}
+
+function changeSkin(step) {
+  currentSkinIndex = (currentSkinIndex + step + SKINS.length) % SKINS.length;
+  try {
+    localStorage.setItem(SKIN_STORAGE_KEY, String(currentSkinIndex));
+  } catch (error) {
+    // La selección sigue activa durante esta partida.
+  }
+}
+
+loadSkin();
 
 // ── Bullet ────────────────────────────────────────────────────────────────────
 class Bullet {
@@ -249,7 +284,9 @@ class Ship {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    ctx.strokeStyle = '#fff';
+    const skin = currentSkin();
+    ctx.strokeStyle = skin.hull;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
 
@@ -260,7 +297,20 @@ class Ship {
     ctx.lineTo( -7,  0);   // muesca trasera
     ctx.lineTo(-12,  9);   // ala derecha
     ctx.closePath();
+    ctx.fillStyle = `${skin.hull}18`;
+    ctx.fill();
     ctx.stroke();
+
+    // Cabina de color para distinguir visualmente cada skin.
+    ctx.beginPath();
+    ctx.moveTo(8, 0);
+    ctx.lineTo(-3, -3.5);
+    ctx.lineTo(-3, 3.5);
+    ctx.closePath();
+    ctx.fillStyle = skin.accent;
+    ctx.globalAlpha = 0.8;
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
     // Llama del propulsor
     if (this.thrusting && Math.random() > 0.35) {
@@ -268,7 +318,7 @@ class Ship {
       ctx.moveTo(-8, -4);
       ctx.lineTo(-8 - rand(6, 14), 0);
       ctx.lineTo(-8,  4);
-      ctx.strokeStyle = 'rgba(255, 130, 0, 0.85)';
+      ctx.strokeStyle = skin.flame;
       ctx.stroke();
     }
     
@@ -276,9 +326,11 @@ class Ship {
     if (this.speedBoost > 0) {
       ctx.beginPath();
       ctx.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(100, 150, 255, 0.7)';
+      ctx.strokeStyle = skin.boost;
+      ctx.globalAlpha = 0.7;
       ctx.lineWidth = 1;
       ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     if (this.tripleShot > 0) {
@@ -466,6 +518,9 @@ function killShip() {
 
 // ── Update ────────────────────────────────────────────────────────────────────
 function update(dt) {
+  if (pressed('KeyQ')) changeSkin(-1);
+  if (pressed('KeyE')) changeSkin(1);
+
   if (state === 'gameover') {
     if (pressed('Space')) initGame();
     particles.forEach(p => p.update(dt));
@@ -573,10 +628,11 @@ function update(dt) {
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 function drawLifeIcon(x, y) {
+  const skin = currentSkin();
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
-  ctx.strokeStyle = '#fff';
+  ctx.strokeStyle = skin.hull;
   ctx.lineWidth   = 1.2;
   ctx.lineJoin    = 'round';
   ctx.beginPath();
@@ -590,6 +646,7 @@ function drawLifeIcon(x, y) {
 }
 
 function drawHUD() {
+  const skin = currentSkin();
   ctx.fillStyle = '#fff';
   ctx.font = '15px monospace';
 
@@ -602,7 +659,7 @@ function drawHUD() {
   // Draw speed boost timer
   if (ship.speedBoost > 0) {
     const timer = Math.ceil(ship.speedBoost);
-    ctx.fillStyle = '#6496ff';
+    ctx.fillStyle = skin.boost;
     ctx.font = 'bold 16px monospace';
     ctx.textAlign = 'right';
     ctx.fillText(`SPEED BOOST: ${timer}`, W - 14, 26);
@@ -615,6 +672,11 @@ function drawHUD() {
     ctx.textAlign = 'right';
     ctx.fillText(`TRIPLE SHOT: ${timer}`, W - 14, ship.speedBoost > 0 ? 46 : 26);
   }
+
+  ctx.fillStyle = skin.hull;
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(`SKIN ${skin.name}  [Q/E]`, W - 14, 66);
 
   for (let i = 0; i < lives; i++)
     drawLifeIcon(W - 16 - i * 22, 18);

@@ -36,6 +36,7 @@ const SKINS = [
   { name: 'NEON', hull: '#5ee7ff', accent: '#ff4fd8', flame: '#ff4fd8', boost: '#5ee7ff' },
   { name: 'SOLAR', hull: '#ffd166', accent: '#fff3b0', flame: '#ff9f1c', boost: '#ffd166' },
   { name: 'CROMO', hull: '#d8dee9', accent: '#7dd3fc', flame: '#38bdf8', boost: '#a5b4fc' },
+  { name: 'ROJA', hull: '#ff2020', accent: '#ff8080', flame: '#ff4040', boost: '#ff4040', scale: 2, points: 2 },
 ];
 const SKIN_STORAGE_KEY = 'asteroids-skin';
 let currentSkinIndex = 0;
@@ -52,6 +53,14 @@ function loadSkin() {
 
 function currentSkin() {
   return SKINS[currentSkinIndex];
+}
+
+function skinScale() {
+  return currentSkin().scale || 1;
+}
+
+function scoreMultiplier() {
+  return currentSkin().points || 1;
 }
 
 function changeSkin(step) {
@@ -244,7 +253,7 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
+    this.radius = 12 * skinScale();
     this.thrusting     = false;
     this.invincible    = 3;
     this.shootCooldown = 0;
@@ -256,6 +265,7 @@ class Ship {
 
   update(dt) {
     if (this.dead) return;
+    this.radius = 12 * skinScale();
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.speedBoost    > 0) this.speedBoost = Math.max(0, this.speedBoost - dt);
@@ -287,7 +297,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = 21 * skinScale();
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
     if (this.tripleShot > 0) {
@@ -322,6 +332,7 @@ class Ship {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
+    ctx.scale(skinScale(), skinScale());
     const skin = currentSkin();
     ctx.strokeStyle = skin.hull;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
@@ -363,7 +374,7 @@ class Ship {
     // Speed boost indicator
     if (this.speedBoost > 0) {
       ctx.beginPath();
-      ctx.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
+      ctx.arc(0, 0, this.radius / skinScale() + 5, 0, Math.PI * 2);
       ctx.strokeStyle = skin.boost;
       ctx.globalAlpha = 0.7;
       ctx.lineWidth = 1;
@@ -373,7 +384,7 @@ class Ship {
 
     if (this.tripleShot > 0) {
       ctx.beginPath();
-      ctx.arc(0, 0, this.radius + 8, 0, Math.PI * 2);
+      ctx.arc(0, 0, this.radius / skinScale() + 8, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(255, 210, 70, 0.8)';
       ctx.lineWidth = 1;
       ctx.stroke();
@@ -643,7 +654,7 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += a.points || POINTS[a.size];
+        score += (a.points || POINTS[a.size]) * scoreMultiplier();
         explode(a.x, a.y, a.size * 5);
         // Spawn a power-up with 20% chance when an asteroid is destroyed.
         if (Math.random() < 0.2) {
@@ -769,7 +780,10 @@ function drawHUD() {
   ctx.fillStyle = skin.hull;
   ctx.font = '12px monospace';
   ctx.textAlign = 'right';
-  ctx.fillText(`SKIN ${skin.name}  [Q/E]`, W - 14, 66);
+  const multiplier = scoreMultiplier();
+  ctx.fillText(multiplier > 1
+    ? `SKIN ${skin.name}  x${multiplier} PTS  [Q/E]`
+    : `SKIN ${skin.name}  [Q/E]`, W - 14, 66);
   for (let i = 0; i < lives; i++)
     drawLifeIcon(W - 16 - i * 22, 18);
 
